@@ -1,45 +1,100 @@
 #include <stdio.h>
-
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+
 #include "boundary.h"
+#include "ray.h"
+#include "player.h"
+
+int map(int x, int in_min, int in_max, int out_min, int out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 int main(int argc, char *argv[]) {
 	SDL_bool running;
-	SDL_Window *window;
-    SDL_Renderer* renderer;
+	SDL_Window *window2D, *window3D;
+	int window_width = 640, window_height = 480;
+    SDL_Renderer *renderer2D, *renderer3D;
 	SDL_Event event;					// Declare event handle
+	float mouseX, mouseY;
 
-	SDL_Init(SDL_INIT_VIDEO);			// SDL2 initialization
+	float scene[NRAYS];
 
-	window = SDL_CreateWindow(	// Create a window
+	time_t t;
+	srand((unsigned) time(&t));
+	size_t NWALLS = 10;
+	Boundary walls[NWALLS];
+
+	walls[0] = *boundary_create(*vector_create(0,0), *vector_create(window_width,0));
+	walls[1] = *boundary_create(*vector_create(window_width,0), *vector_create(window_width,window_height));
+	walls[2] = *boundary_create(*vector_create(window_width,window_height), *vector_create(0,window_height));
+	walls[3] = *boundary_create(*vector_create(0,window_height), *vector_create(0,0));
+
+	for(int i = 4; i < NWALLS; i++){
+		float x1 = rand() % window_width;
+		float x2 = rand() % window_width;
+		float y1 = rand() % window_height;
+		float y2 = rand() % window_height;
+		walls[i] = *boundary_create(*vector_create(x1,y1), *vector_create(x2,y2));
+	}
+
+	
+	Player* player = player_create(*vector_create(window_width/2, window_height/2));
+
+	SDL_Init(SDL_INIT_VIDEO);	// SDL2 initialization
+	SDL_Init(SDL_INIT_EVENTS);
+
+	// 2D VIEW
+	window2D = SDL_CreateWindow(	// Create a window
 		"Raycaster",
 		SDL_WINDOWPOS_CENTERED,
 		SDL_WINDOWPOS_CENTERED,
-		640,
-		480,
+		window_width,
+		window_height,
 		SDL_WINDOW_SHOWN
 	);
 
 	// Check that the window was successfully made
-	if (window == NULL) {
+	if (window2D == NULL) {
 		// In the event that the window could not be made...
 		SDL_Log("Could not create window: %s", SDL_GetError());
 		SDL_Quit();
 		return 1;
 	}
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (renderer == NULL) {
+    renderer2D = SDL_CreateRenderer(window2D, -1, SDL_RENDERER_ACCELERATED);
+    if (renderer2D == NULL) {
 		// In the event that the window could not be made...
 		SDL_Log("Could not create renderer: %s", SDL_GetError());
 		SDL_Quit();
 		return 1;
 	}
 
-    Point* a = point_create(1,1);
-    Point* b = point_create(100,100);
-    Boundary* boundary = boundary_create(*a, *b);
+	// 3D VIEW
+	window3D = SDL_CreateWindow(	// Create a window
+		"Raycaster",
+		SDL_WINDOWPOS_CENTERED,
+		SDL_WINDOWPOS_CENTERED,
+		window_width,
+		window_height,
+		SDL_WINDOW_SHOWN
+	);
+
+	// Check that the window was successfully made
+	if (window3D == NULL) {
+		// In the event that the window could not be made...
+		SDL_Log("Could not create window: %s", SDL_GetError());
+		SDL_Quit();
+		return 1;
+	}
+
+    renderer3D = SDL_CreateRenderer(window3D, -1, SDL_RENDERER_ACCELERATED);
+    if (renderer3D == NULL) {
+		// In the event that the window could not be made...
+		SDL_Log("Could not create renderer: %s", SDL_GetError());
+		SDL_Quit();
+		return 1;
+	}
 
 	running = SDL_TRUE;
 
@@ -48,21 +103,59 @@ int main(int argc, char *argv[]) {
 	while (running) {
 		while (running && SDL_PollEvent(&event)) {
 			switch (event.type) {
-				case SDL_QUIT: {			// In case of exit
-					running = SDL_FALSE;
+				case SDL_WINDOWEVENT:
+					if(event.window.event == SDL_WINDOWEVENT_CLOSE){
+						running = SDL_FALSE;
+					}
 					break;
-				}
+
+				case SDL_MOUSEMOTION:
+					mouseX = event.motion.x;
+					mouseY = event.motion.y;
+					break;
+
+				case SDL_KEYDOWN:
+					switch (event.key.keysym.sym)
+					{
+						case SDLK_LEFT:  player_rotate(player, -0.1); break;
+						case SDLK_RIGHT: player_rotate(player, 0.1); break;
+					}
+					break;
+
 			}
 		}
 
-        SDL_SetRenderDrawColor(renderer, 242, 242, 242, 255);
-		SDL_RenderClear(renderer);
-        boundary_draw(boundary, renderer, 255, 0, 0, SDL_ALPHA_OPAQUE);
-        SDL_RenderPresent(renderer);
+        SDL_SetRenderDrawColor(renderer2D, 10, 10, 10, 255);
+		SDL_SetRenderDrawColor(renderer3D, 10, 10, 10, 255);
+		SDL_RenderClear(renderer2D);
+		SDL_RenderClear(renderer3D);
+
+		/*---------------------------------------------------------------------*/
+		for(int i = 0; i < sizeof(walls)/sizeof(walls[0]); i++){
+			boundary_draw(&walls[i], renderer2D, 0, 225, 0, SDL_ALPHA_OPAQUE);
+		}
+        
+		player_setPos(player, *vector_create(mouseX, mouseY));
+		player_look(scene, player, walls, NWALLS, renderer2D, 225, 225, 225);
+
+		const int w = window_width / (sizeof(scene)/sizeof(scene[0]));
+		for(int i = 0; i < sizeof(scene)/sizeof(scene[0]); i++){
+			const int b = map(scene[i], 0, window_width, 255, 0);
+			const int h = map(scene[i], 0, window_width, window_height, 0);
+			SDL_SetRenderDrawColor(renderer3D, 0, b, 0, 255);
+			SDL_Rect rectA = {i * w + w / 2, window_height/2 - h / 2, w, h};
+			SDL_RenderFillRect(renderer3D, &rectA);
+		}
+		/*---------------------------------------------------------------------*/
+
+        SDL_RenderPresent(renderer2D);
+		SDL_RenderPresent(renderer3D);
 	}
 	
-    SDL_DestroyRenderer(renderer);
-	SDL_DestroyWindow(window);		// Close and destroy the window
+    SDL_DestroyRenderer(renderer2D);
+	SDL_DestroyRenderer(renderer3D);
+	SDL_DestroyWindow(window2D);		// Close and destroy the window
+	SDL_DestroyWindow(window3D);
 	SDL_Quit();						// Clean up
 	return 0;
 }
