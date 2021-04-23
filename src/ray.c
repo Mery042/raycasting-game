@@ -3,57 +3,59 @@
 #include <stdlib.h>
 #include <math.h>
 
-Vector* ray_getPos(const Ray* ray){
-    Vector* vector = malloc(sizeof(Vector));
-    vector = &ray->pos;
-    return vector;
+struct _Ray
+{
+    Vector* pos;
+    Vector* dir;
+};
+
+Vector* ray_getPos(const Ray* self){
+    return self->pos;
 }
 
-Vector* ray_getDir(const Ray* ray){
-    Vector* vector = malloc(sizeof(Vector));
-    vector = &ray->dir;
-    return vector;
+Vector* ray_getDir(const Ray* self){
+    return self->dir;
 }
 
-Ray* ray_set(Ray* ray, const Vector pos, const double angle){
-    ray->pos = pos;
-    ray->dir = *vector_set(ray_getDir(ray), cos(angle), sin(angle));
-    return ray;
+void ray_init(Ray* self, Vector* pos, double angle){
+    self->pos = pos;
+    self->dir = vector_fromAngle(angle);
 }
 
-void ray_setPos(Ray* ray, const Vector pos){
-    ray->pos = pos;
+void ray_setPos(Ray* self, Vector* pos){
+    self->pos = pos;
 }
 
-void ray_setAngle(Ray* ray, const double angle){
-    ray->dir = *vector_set(ray_getDir(ray), cos(angle), sin(angle));
+void ray_setAngle(Ray* self, double angle){
+    self->dir = vector_fromAngle(angle);
 }
 
-Ray* ray_create(const Vector pos, const double angle){
-    Ray* ray = malloc(sizeof(Ray));
-    return ray_set(ray, pos, angle);
+Ray* ray_create(Vector* pos, double angle){
+    Ray* result = (Ray*) malloc(sizeof(Ray));
+    ray_init(result, pos, angle);
+    return result;
 }
 
-void ray_draw(const Ray* ray, SDL_Renderer* renderer, Uint8 r, Uint8 g, Uint8 b, Uint8 a){
-    float pos_x = ray->pos.x;
-    float pos_y = ray->pos.y;
-    float dir_x = ray->dir.x;
-    float dir_y = ray->dir.y;
+void ray_draw(Ray* self, SDL_Renderer* renderer, Uint8 r, Uint8 g, Uint8 b, Uint8 a){
+    float pos_x = vector_getX(self->pos);
+    float pos_y = vector_getY(self->pos);
+    float dir_x = vector_getX(self->dir);
+    float dir_y = vector_getY(self->dir);
 
     SDL_SetRenderDrawColor(renderer, r, g, b, a);
     SDL_RenderDrawLine(renderer, pos_x, pos_y, pos_x + dir_x * 10, pos_y + dir_y * 10);
 }
 
-Vector* ray_cast(const Ray* ray, const Boundary* wall){
+Vector* ray_cast(Ray* self, Boundary* wall){
     const float x1 = vector_getX(boundary_getA(wall));
     const float y1 = vector_getY(boundary_getA(wall));
     const float x2 = vector_getX(boundary_getB(wall));
     const float y2 = vector_getY(boundary_getB(wall));
 
-    const float x3 = ray->pos.x;
-    const float y3 = ray->pos.y;
-    const float x4 = ray->pos.x + ray->dir.x;
-    const float y4 = ray->pos.y + ray->dir.y;
+    const float x3 = vector_getX(self->pos);
+    const float y3 = vector_getY(self->pos);
+    const float x4 = vector_getX(self->pos) + vector_getX(self->dir);
+    const float y4 = vector_getY(self->pos) + vector_getY(self->dir);
 
     const float den = (x1-x2) * (y3-y4) - (y1-y2) * (x3-x4);
     if(den == 0){

@@ -2,31 +2,65 @@
 #include <math.h>
 #include <stdlib.h>
 
-float vector_getX(const Vector* vector){
-    return vector->x;
+struct _Vector
+{
+    float x;
+    float y;
+};
+
+float vector_getX(const Vector* self){
+    return self->x;
 }
 
-float vector_getY(const Vector* vector){
-    return vector->y;
+float vector_getY(const Vector* self){
+    return self->y;
 }
 
-Vector* vector_set(Vector* vector, const float x, const float y){
-    vector->x = x;
-    vector->y = y;
-    return vector;
+double vector_getHeading(const Vector* self){
+    return atan2(self->y, self->x);
 }
 
-Vector* vector_create(const float x, const float y){
-    Vector* vector = malloc(sizeof(Vector));
-    return vector_set(vector, x, y);
+void vector_init(Vector* self, float x, float y){
+    self->x = x;
+    self->y = y;
 }
 
-void vector_normalize(Vector* vector){
-    float w = sqrt(vector->x * vector->x + vector->y * vector->y);
-    vector->x /= w;
-    vector->y /= w;
+Vector* vector_create(float x, float y){
+    Vector* result = (Vector*) malloc(sizeof(Vector));
+    vector_init(result, x, y);
+    return result;
 }
 
-float vector_distance(const Vector* a, const Vector* b){
+Vector* vector_fromAngle(double angle){
+    Vector* result = (Vector*) malloc(sizeof(Vector));
+    vector_init(result, cos(angle), sin(angle));
+    return result;
+}
+
+double vector_toAngle(Vector* self){
+    return atan2(self->y, self->x);
+}
+
+void vector_normalize(Vector* self){
+    float w = sqrt(self->x * self->x + self->y * self->y);
+    if(w != 0){
+        self->x *= 1/w;
+        self->y *= 1/w;
+    }
+}
+
+void vector_add(Vector* self, Vector* k){
+    self->x += vector_getX(k);
+    self->y += vector_getY(k);
+}
+
+void vector_setMag(Vector* self, float mag){
+    vector_normalize(self);
+    self->x *= mag;
+    self->y *= mag;
+}
+
+float vector_distance(Vector* a, Vector* b){
     return sqrt(pow(vector_getX(a) - vector_getX(b), 2) + pow(vector_getY(a) - vector_getY(b), 2));
 }
+

@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <SDL2/SDL.h>
+#include <time.h>
+#include <math.h>
 
 #include "boundary.h"
 #include "ray.h"
 #include "player.h"
 
-int map(int x, int in_min, int in_max, int out_min, int out_max)
+long map(long x, long in_min, long in_max, long out_min, long out_max)
 {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -15,31 +17,31 @@ int main(int argc, char *argv[]) {
 	SDL_Window *window2D, *window3D;
 	int window_width = 640, window_height = 480;
     SDL_Renderer *renderer2D, *renderer3D;
+
 	SDL_Event event;					// Declare event handle
-	float mouseX, mouseY;
+	float deltaX;
+
+	Player* player = player_create(vector_create(window_width/2, window_height/2));
 
 	float scene[NRAYS];
 
 	time_t t;
 	srand((unsigned) time(&t));
 	size_t NWALLS = 10;
-	Boundary walls[NWALLS];
+	Boundary* walls[NWALLS];
 
-	walls[0] = *boundary_create(*vector_create(0,0), *vector_create(window_width,0));
-	walls[1] = *boundary_create(*vector_create(window_width,0), *vector_create(window_width,window_height));
-	walls[2] = *boundary_create(*vector_create(window_width,window_height), *vector_create(0,window_height));
-	walls[3] = *boundary_create(*vector_create(0,window_height), *vector_create(0,0));
+	walls[0] = boundary_create(vector_create(0,0), vector_create(window_width,0));
+	walls[1] = boundary_create(vector_create(window_width,0), vector_create(window_width,window_height));
+	walls[2] = boundary_create(vector_create(window_width,window_height), vector_create(0,window_height));
+	walls[3] = boundary_create(vector_create(0,window_height), vector_create(0,0));
 
 	for(int i = 4; i < NWALLS; i++){
 		float x1 = rand() % window_width;
 		float x2 = rand() % window_width;
 		float y1 = rand() % window_height;
 		float y2 = rand() % window_height;
-		walls[i] = *boundary_create(*vector_create(x1,y1), *vector_create(x2,y2));
+		walls[i] = boundary_create(vector_create(x1,y1), vector_create(x2,y2));
 	}
-
-	
-	Player* player = player_create(*vector_create(window_width/2, window_height/2));
 
 	SDL_Init(SDL_INIT_VIDEO);	// SDL2 initialization
 	SDL_Init(SDL_INIT_EVENTS);
@@ -47,8 +49,8 @@ int main(int argc, char *argv[]) {
 	// 2D VIEW
 	window2D = SDL_CreateWindow(	// Create a window
 		"Raycaster",
-		SDL_WINDOWPOS_CENTERED,
-		SDL_WINDOWPOS_CENTERED,
+		10,
+		100,
 		window_width,
 		window_height,
 		SDL_WINDOW_SHOWN
@@ -73,8 +75,8 @@ int main(int argc, char *argv[]) {
 	// 3D VIEW
 	window3D = SDL_CreateWindow(	// Create a window
 		"Raycaster",
-		SDL_WINDOWPOS_CENTERED,
-		SDL_WINDOWPOS_CENTERED,
+		700,
+		100,
 		window_width,
 		window_height,
 		SDL_WINDOW_SHOWN
@@ -96,6 +98,10 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	//SDL_ShowCursor(SDL_DISABLE);
+	//SDL_SetRelativeMouseMode(SDL_TRUE);
+	SDL_WarpMouseInWindow(window3D, window_width / 2, window_height / 2);
+
 	running = SDL_TRUE;
 
 	// user-defined code here...
@@ -110,15 +116,21 @@ int main(int argc, char *argv[]) {
 					break;
 
 				case SDL_MOUSEMOTION:
-					mouseX = event.motion.x;
-					mouseY = event.motion.y;
+					deltaX = (float)event.motion.x - window_width/2;
+				
+					player_rotate(player, DEG2RAD(deltaX));
+					SDL_WarpMouseInWindow(window3D, window_width / 2, window_height / 2);
 					break;
 
 				case SDL_KEYDOWN:
 					switch (event.key.keysym.sym)
 					{
-						case SDLK_LEFT:  player_rotate(player, -0.1); break;
-						case SDLK_RIGHT: player_rotate(player, 0.1); break;
+						//case SDLK_q:  player_move(player, -0.1); break;
+						//case SDLK_d: player_move(player, 0.1); break;
+						case SDLK_z: player_move(player, 1.5); break;
+						case SDLK_s: player_move(player, -1.5); break;
+						case SDLK_KP_MINUS: player_updateFOV(player, -5); break;
+						case SDLK_KP_PLUS: player_updateFOV(player, 5); break;
 					}
 					break;
 
@@ -132,16 +144,19 @@ int main(int argc, char *argv[]) {
 
 		/*---------------------------------------------------------------------*/
 		for(int i = 0; i < sizeof(walls)/sizeof(walls[0]); i++){
-			boundary_draw(&walls[i], renderer2D, 0, 225, 0, SDL_ALPHA_OPAQUE);
+			boundary_draw(walls[i], renderer2D, 0, 225, 0, SDL_ALPHA_OPAQUE);
 		}
         
-		player_setPos(player, *vector_create(mouseX, mouseY));
+		double distProjPlane = window_width / 2.0 / tan(player_getFOV(player) / 2.0); // projection plane is required for fisheye fix
 		player_look(scene, player, walls, NWALLS, renderer2D, 225, 225, 225);
 
 		const int w = window_width / (sizeof(scene)/sizeof(scene[0]));
-		for(int i = 0; i < sizeof(scene)/sizeof(scene[0]); i++){
-			const int b = map(scene[i], 0, window_width, 255, 0);
-			const int h = map(scene[i], 0, window_width, window_height, 0);
+		for(int i = 0; i < player_getFOV(player) - 1; i++){
+			const float iSq = scene[i]*scene[i];
+			const int wSq = window_width*window_width;
+			const int b = map(iSq, 0, wSq, 255, 0);
+			//const int h = map(scene[i], 0, window_width, window_height, 0);
+			const double h = (window_width / scene[i]) * distProjPlane; // fisheye fix
 			SDL_SetRenderDrawColor(renderer3D, 0, b, 0, 255);
 			SDL_Rect rectA = {i * w + w / 2, window_height/2 - h / 2, w, h};
 			SDL_RenderFillRect(renderer3D, &rectA);

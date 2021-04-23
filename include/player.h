@@ -2,24 +2,24 @@
 #define PLAYER
 #include "vector.h"
 #include "ray.h"
-#define NRAYS 45
+#define NRAYS 90
 
-typedef struct _Player
-{
-    Vector pos;
-    Ray rays[NRAYS];
-    double rotation;
+struct _Player;
+typedef struct _Player Player;
 
-} Player;
+extern Vector* player_getPos(const Player* self);
+extern Vector* player_getHeading(const Player* self);
+extern int player_getFOV(const Player* self);
 
-extern Vector* player_getPos(const Player* player);
+extern void player_init(Player* self, Vector* pos);
 
-extern Player* player_set(Player* player, const Vector pos);
-extern void player_setPos(Player* player, const Vector pos);
-extern void player_rotate(Player* player, const double angle);
+extern void player_updateFOV(Player* self, int fov);
+extern void player_setPos(Player* self, Vector* pos);
+extern void player_rotate(Player* self, double angle);
+extern void player_move(Player* self, float movement);
 
-extern Player* player_create(const Vector pos);
+extern Player* player_create(Vector* pos);
 
-extern void player_look(float scene[], const Player* player, const Boundary walls[], const size_t NWALLS, SDL_Renderer* renderer, Uint8 r, Uint8 g, Uint8 b);
+extern void player_look(float scene[], Player* self, Boundary* walls[], size_t NWALLS, SDL_Renderer* renderer, Uint8 r, Uint8 g, Uint8 b);
 
 #endif /* PLAYER */

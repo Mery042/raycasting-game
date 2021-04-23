@@ -3,19 +3,17 @@
 #include "vector.h"
 #include <SDL2/SDL.h>
 
-typedef struct _Boundary
-{
-    Vector a;
-    Vector b;
-} Boundary;
+struct _Boundary;
+typedef struct _Boundary Boundary;
 
-extern Vector* boundary_getA(const Boundary* boundary);
-extern Vector* boundary_getB(const Boundary* boundary);
 
-extern Boundary* boundary_set(Boundary* boundary, const Vector a, const Vector b);
-extern Boundary* boundary_create(const Vector a, const Vector b);
+extern Vector* boundary_getA(const Boundary* self);
+extern Vector* boundary_getB(const Boundary* self);
 
-extern void boundary_draw(const Boundary* boundary, SDL_Renderer* renderer, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+extern void boundary_init(Boundary* self, Vector* a, Vector* b);
+extern Boundary* boundary_create(Vector* a, Vector* b);
+
+extern void boundary_draw(Boundary* self, SDL_Renderer* renderer, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
 
 
 #endif /* BOUNDARY */
